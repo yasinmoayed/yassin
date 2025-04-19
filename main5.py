@@ -2585,8 +2585,6 @@ class DietCalculatorApp:
             messagebox.showerror("خطا", f"خطایی در ذخیره‌سازی پیش آمد: {e}")
             # کلید خصوصی برای تولید و بررسی کدها
 # کلید خصوصی برای تولید و بررسی کدها
-# فایل ذخیره وضعیت فعال‌سازی
-# کلید خصوصی برای تولید و بررسی کدها
 SECRET_KEY = "MySecretKey"
 
 # فایل ذخیره اطلاعات کاربر
@@ -2647,7 +2645,7 @@ def validate_final_hash(final_hash):
 
     return False, "کد فعال‌سازی نامعتبر است!"
 
-# برنامه اصلی فعال‌سازی
+# پنجره فعال‌سازی
 def activation_window():
     global activation_successful
 
@@ -2663,12 +2661,10 @@ def activation_window():
         initial_hash = generate_initial_hash(name, email)
         save_user_data(name, email, initial_hash)
 
-        initial_hash_entry.config(state="normal")  # فعال کردن فیلد برای وارد کردن مقدار
+        initial_hash_entry.config(state="normal")
         initial_hash_entry.delete(0, tk.END)
         initial_hash_entry.insert(0, initial_hash)
-        initial_hash_entry.config(state="readonly")  # غیرفعال کردن فیلد برای جلوگیری از ویرایش
-
-        # فعال کردن دکمه کپی
+        initial_hash_entry.config(state="readonly")
         copy_button.config(state="normal")
 
     def copy_to_clipboard():
@@ -2693,21 +2689,13 @@ def activation_window():
         if is_valid:
             messagebox.showinfo("موفقیت", message)
             activation_successful = True
-            activation_root.destroy()  # بستن پنجره فعال‌سازی
+            activation_root.destroy()
         else:
             messagebox.showerror("خطا", message)
 
-    # طراحی پنجره اصلی
+    # طراحی پنجره فعال‌سازی
     activation_root = tk.Tk()
     activation_root.title("فعال‌سازی برنامه")
-
-    # جلوگیری از اجرای برنامه اصلی در صورت بسته شدن پنجره
-    def on_close():
-        global activation_successful
-        if not activation_successful:
-            activation_root.destroy()
-
-    activation_root.protocol("WM_DELETE_WINDOW", on_close)
 
     # دریافت نام و ایمیل
     tk.Label(activation_root, text="نام:").grid(row=0, column=0, padx=5, pady=5)
@@ -2718,9 +2706,10 @@ def activation_window():
     email_entry = tk.Entry(activation_root)
     email_entry.grid(row=1, column=1, padx=5, pady=5)
 
+    # دکمه تولید کد اولیه
     tk.Button(activation_root, text="تولید کد فعال‌سازی اولیه", command=generate_initial_and_display).grid(row=2, column=0, columnspan=2, pady=10)
 
-    # نمایش کد فعال‌سازی اولیه
+    # نمایش کد اولیه
     tk.Label(activation_root, text="کد فعال‌سازی اولیه:").grid(row=3, column=0, padx=5, pady=5)
     initial_hash_entry = tk.Entry(activation_root, state="readonly")
     initial_hash_entry.grid(row=3, column=1, padx=5, pady=5)
@@ -2729,11 +2718,12 @@ def activation_window():
     copy_button = tk.Button(activation_root, text="کپی کد", state="disabled", command=copy_to_clipboard)
     copy_button.grid(row=4, column=0, columnspan=2, pady=5)
 
-    # دریافت کد فعال‌سازی نهایی
+    # دریافت کد نهایی
     tk.Label(activation_root, text="کد فعال‌سازی نهایی:").grid(row=5, column=0, padx=5, pady=5)
     final_hash_entry = tk.Entry(activation_root)
     final_hash_entry.grid(row=5, column=1, padx=5, pady=5)
 
+    # دکمه فعال‌سازی
     tk.Button(activation_root, text="فعال‌سازی", command=validate_final).grid(row=6, column=0, columnspan=2, pady=10)
 
     activation_root.mainloop()
@@ -2747,7 +2737,14 @@ def main_program():
 
 if __name__ == "__main__":
     # بررسی وضعیت فعال‌سازی
-    if load_user_data() and activation_successful:
+    user_data = load_user_data()
+    if user_data:
+        activation_date = datetime.datetime.strptime(user_data["activation_date"], "%Y-%m-%d")
+        expiration_date = activation_date + datetime.timedelta(days=365)  # اعتبار یک سال
+        if datetime.datetime.now() <= expiration_date:
+            activation_successful = True
+
+    if activation_successful:
         main_program()
     else:
         activation_window()
