@@ -1,3 +1,4 @@
+from logging import root
 import tkinter as tk
 from tkinter import ttk, messagebox
 from bidi.algorithm import get_display
@@ -7,13 +8,10 @@ from tkinter import filedialog
 import json
 import openpyxl
 from openpyxl.styles import Alignment
-from tkinter import filedialog
 import hashlib
-import tkinter as tk
-from tkinter import messagebox
 import datetime
 import os
-import json
+
 
 # فایل ذخیره مواد اولیه پیش‌فرض
 DEFAULT_MATERIALS_FILE = "materials_data.json"
@@ -2587,7 +2585,8 @@ class DietCalculatorApp:
             messagebox.showerror("خطا", f"خطایی در ذخیره‌سازی پیش آمد: {e}")
             # کلید خصوصی برای تولید و بررسی کدها
 # کلید خصوصی برای تولید و بررسی کدها
-# کلید خصوصی
+# فایل ذخیره وضعیت فعال‌سازی
+# کلید خصوصی برای تولید و بررسی کدها
 SECRET_KEY = "MySecretKey"
 
 # فایل ذخیره اطلاعات کاربر
@@ -2739,18 +2738,18 @@ def activation_window():
 
     activation_root.mainloop()
 
-if __name__ == "__main__":
-    activation_window()
-    if activation_successful:
-        # اجرای برنامه اصلی فقط در صورت موفقیت‌آمیز بودن فعال‌سازی
-        def main_program():
-            root = tk.Tk()
-            root.title("برنامه اصلی")
-            tk.Label(root, text="برنامه با موفقیت فعال شد!").pack(pady=20)
-            root.mainloop()
-
-        main_program()
-if __name__ == "__main__":
+# برنامه اصلی
+def main_program():
     root = tk.Tk()
-    app = DietCalculatorApp(root)
+    root.title("برنامه اصلی")
+    tk.Label(root, text="برنامه با موفقیت فعال شده است!").pack(pady=20)
     root.mainloop()
+
+if __name__ == "__main__":
+    # بررسی وضعیت فعال‌سازی
+    if load_user_data() and activation_successful:
+        main_program()
+    else:
+        activation_window()
+        if activation_successful:
+            main_program()
