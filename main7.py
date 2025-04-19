@@ -1,3 +1,4 @@
+from logging import root
 import tkinter as tk
 from tkinter import ttk, messagebox
 from bidi.algorithm import get_display
@@ -2586,27 +2587,59 @@ class DietCalculatorApp:
         except Exception as e:
             messagebox.showerror("خطا", f"خطایی در ذخیره‌سازی پیش آمد: {e}")
             # کلید خصوصی برای تولید و بررسی کدها
-# کلید خصوصی برای تولید و بررسی کدها
-# کلید خصوصی
-SECRET_KEY = "MySecretKey"
-
-# فایل ذخیره اطلاعات کاربر
+# فایل‌ها و کلیدهای مورد استفاده
+DB_FILE = "materials_data.db"
 USER_DATA_FILE = "user_data.json"
-
-# متغیر وضعیت برای فعال‌سازی
+SECRET_KEY = "MySecretKey"
 activation_successful = False
 
-# تابع تولید هش اولیه
-def generate_initial_hash(name, email):
-    data = f"{name}:{email}:{SECRET_KEY}"
-    return hashlib.sha256(data.encode()).hexdigest()[:10]
+# تابع اصلاح متن فارسی
+def reshape_text(text):
+    try:
+        from bidi.algorithm import get_display
+        import arabic_reshaper
+        return get_display(arabic_reshaper.reshape(text))
+    except ImportError:
+        return text
 
-# تابع تولید هش نهایی
-def generate_final_hash(initial_hash, duration_days):
-    data = f"{initial_hash}:{duration_days}:{SECRET_KEY}"
-    return hashlib.sha256(data.encode()).hexdigest()[:10]
+# تنظیم پایگاه داده
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS materials (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            data TEXT NOT NULL
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS species (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            data TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
 
-# ذخیره اطلاعات کاربر در فایل
+# ذخیره و بارگذاری داده‌ها در پایگاه داده
+def save_to_db(table, name, data):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(f"INSERT OR REPLACE INTO {table} (name, data) VALUES (?, ?)", (name, json.dumps(data, ensure_ascii=False)))
+    conn.commit()
+    conn.close()
+
+def load_from_db(table):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(f"SELECT name, data FROM {table}")
+    rows = cursor.fetchall()
+    conn.close()
+    return {name: json.loads(data) for name, data in rows}
+
+# ذخیره و بارگذاری اطلاعات کاربر
 def save_user_data(name, email, initial_hash):
     user_data = {
         "name": name,
@@ -2617,100 +2650,80 @@ def save_user_data(name, email, initial_hash):
     with open(USER_DATA_FILE, "w") as file:
         json.dump(user_data, file)
 
-# بارگذاری اطلاعات کاربر از فایل
 def load_user_data():
     if os.path.exists(USER_DATA_FILE):
         with open(USER_DATA_FILE, "r") as file:
             return json.load(file)
     return None
 
-# بررسی هش نهایی
+# فعال‌سازی برنامه
+def generate_initial_hash(name, email):
+    data = f"{name}:{email}:{SECRET_KEY}"
+    return hashlib.sha256(data.encode()).hexdigest()[:10]
+
+def generate_final_hash(initial_hash, duration_days):
+    data = f"{initial_hash}:{duration_days}:{SECRET_KEY}"
+    return hashlib.sha256(data.encode()).hexdigest()[:10]
+
 def validate_final_hash(final_hash):
     user_data = load_user_data()
     if not user_data:
         return False, "اطلاعات کاربر یافت نشد!"
-
     initial_hash = user_data["initial_hash"]
-
-    try:
-        # جستجو برای مدت زمان‌های ممکن
-        for duration_days in range(1, 366):  
-            expected_hash = generate_final_hash(initial_hash, duration_days)
-            if final_hash == expected_hash:
-                # بررسی تاریخ انقضا
-                activation_date = datetime.datetime.strptime(user_data["activation_date"], "%Y-%m-%d")
-                expiration_date = activation_date + datetime.timedelta(days=duration_days)
-                if datetime.datetime.now() > expiration_date:
-                    return False, "کد فعال‌سازی منقضی شده است!"
-                return True, f"برنامه برای {duration_days} روز فعال شد!"
-    except Exception:
-        return False, "فرمت کد فعال‌سازی نامعتبر است!"
-
+    for duration_days in range(1, 366):
+        expected_hash = generate_final_hash(initial_hash, duration_days)
+        if final_hash == expected_hash:
+            activation_date = datetime.datetime.strptime(user_data["activation_date"], "%Y-%m-%d")
+            expiration_date = activation_date + datetime.timedelta(days=duration_days)
+            if datetime.datetime.now() > expiration_date:
+                return False, "کد فعال‌سازی منقضی شده است!"
+            return True, f"برنامه برای {duration_days} روز فعال شد!"
     return False, "کد فعال‌سازی نامعتبر است!"
 
-# برنامه اصلی فعال‌سازی
 def activation_window():
     global activation_successful
+    def on_close():
+        if not activation_successful:
+            os._exit(0)
 
     def generate_initial_and_display():
         name = name_entry.get().strip()
         email = email_entry.get().strip()
-
         if not name or not email:
             messagebox.showerror("خطا", "لطفاً همه فیلدها را پر کنید!")
             return
-
-        # تولید هش اولیه
         initial_hash = generate_initial_hash(name, email)
         save_user_data(name, email, initial_hash)
-
-        initial_hash_entry.config(state="normal")  # فعال کردن فیلد برای وارد کردن مقدار
+        initial_hash_entry.config(state="normal")
         initial_hash_entry.delete(0, tk.END)
         initial_hash_entry.insert(0, initial_hash)
-        initial_hash_entry.config(state="readonly")  # غیرفعال کردن فیلد برای جلوگیری از ویرایش
-
-        # فعال کردن دکمه کپی
+        initial_hash_entry.config(state="readonly")
         copy_button.config(state="normal")
 
     def copy_to_clipboard():
-        initial_hash = initial_hash_entry.get().strip()
-        if initial_hash:
-            activation_root.clipboard_clear()
-            activation_root.clipboard_append(initial_hash)
-            activation_root.update()
-            messagebox.showinfo("کپی شد", "کد فعال‌سازی اولیه کپی شد!")
-        else:
-            messagebox.showerror("خطا", "کدی برای کپی وجود ندارد!")
+        activation_root.clipboard_clear()
+        activation_root.clipboard_append(initial_hash_entry.get().strip())
+        activation_root.update()
+        messagebox.showinfo("کپی شد", "کد فعال‌سازی اولیه کپی شد!")
 
     def validate_final():
         global activation_successful
         final_hash = final_hash_entry.get().strip()
-
         if not final_hash:
             messagebox.showerror("خطا", "لطفاً کد فعال‌سازی نهایی را وارد کنید!")
             return
-
         is_valid, message = validate_final_hash(final_hash)
         if is_valid:
             messagebox.showinfo("موفقیت", message)
             activation_successful = True
-            activation_root.destroy()  # بستن پنجره فعال‌سازی
+            activation_root.destroy()
         else:
             messagebox.showerror("خطا", message)
 
-    # طراحی پنجره اصلی
     activation_root = tk.Tk()
     activation_root.title("فعال‌سازی برنامه")
-
-    # جلوگیری از اجرای برنامه اصلی در صورت بسته شدن پنجره
-    def on_close():
-        global activation_successful
-        if not activation_successful:
-            activation_root.destroy()
-
     activation_root.protocol("WM_DELETE_WINDOW", on_close)
 
-    # دریافت نام و ایمیل
     tk.Label(activation_root, text="نام:").grid(row=0, column=0, padx=5, pady=5)
     name_entry = tk.Entry(activation_root)
     name_entry.grid(row=0, column=1, padx=5, pady=5)
@@ -2721,16 +2734,13 @@ def activation_window():
 
     tk.Button(activation_root, text="تولید کد فعال‌سازی اولیه", command=generate_initial_and_display).grid(row=2, column=0, columnspan=2, pady=10)
 
-    # نمایش کد فعال‌سازی اولیه
     tk.Label(activation_root, text="کد فعال‌سازی اولیه:").grid(row=3, column=0, padx=5, pady=5)
     initial_hash_entry = tk.Entry(activation_root, state="readonly")
     initial_hash_entry.grid(row=3, column=1, padx=5, pady=5)
 
-    # دکمه کپی کد
     copy_button = tk.Button(activation_root, text="کپی کد", state="disabled", command=copy_to_clipboard)
     copy_button.grid(row=4, column=0, columnspan=2, pady=5)
 
-    # دریافت کد فعال‌سازی نهایی
     tk.Label(activation_root, text="کد فعال‌سازی نهایی:").grid(row=5, column=0, padx=5, pady=5)
     final_hash_entry = tk.Entry(activation_root)
     final_hash_entry.grid(row=5, column=1, padx=5, pady=5)
@@ -2739,18 +2749,15 @@ def activation_window():
 
     activation_root.mainloop()
 
+# برنامه اصلی
+def main_program():
+    root = tk.Tk()
+    root.title("برنامه اصلی")
+    tk.Label(root, text="برنامه با موفقیت فعال شد!").pack(pady=20)
+    root.mainloop()
+
 if __name__ == "__main__":
+    init_db()
     activation_window()
     if activation_successful:
-        # اجرای برنامه اصلی فقط در صورت موفقیت‌آمیز بودن فعال‌سازی
-        def main_program():
-            root = tk.Tk()
-            root.title("برنامه اصلی")
-            tk.Label(root, text="برنامه با موفقیت فعال شد!").pack(pady=20)
-            root.mainloop()
-
         main_program()
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = DietCalculatorApp(root)
-    root.mainloop()
