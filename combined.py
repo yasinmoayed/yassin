@@ -4,16 +4,16 @@ import json
 from cryptography.fernet import Fernet
 from tkinter import Tk, Button, filedialog, messagebox
 from datetime import datetime, timedelta
-import subprocess
 import os
+import sys  # اضافه کردن ماژول sys برای خروج کامل
+
+# مسیر دایرکتوری فعلی
+CURRENT_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+ACTIVATION_STATUS_FILE = os.path.join(CURRENT_DIRECTORY, "activation_status.json")
 
 # Define a valid Base64 key for Fernet encryption
 SECRET_KEY = b'Y2hvb3NlQVN0cm9uZ0JhU2U2NEVuY3J5cHRpb25LZXk='  # Replace with your valid Fernet key
 cipher = Fernet(SECRET_KEY)
-
-# مسیر دایرکتوری فعلی که فایل activator.py در آن قرار دارد
-CURRENT_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
-ACTIVATION_STATUS_FILE = os.path.join(CURRENT_DIRECTORY, "activation_status.json")
 
 def load_encrypted_file(file_path):
     """
@@ -72,37 +72,23 @@ def on_activate():
     file_path = filedialog.askopenfilename(filetypes=[("Key Files", "*.key")])
     if not file_path:
         messagebox.showerror("Error", "No file selected!")
-        return
+        sys.exit()  # خروج کامل از برنامه اگر هیچ فایلی انتخاب نشده باشد
 
     try:
         data = load_encrypted_file(file_path)
     except Exception as e:
         messagebox.showerror("Error", f"Failed to load file: {str(e)}")
-        return
+        sys.exit()  # خروج کامل از برنامه اگر فایل خراب باشد
 
     valid, result = validate_activation_data(data)
     if valid:
         save_activation_status(result)  # Save expiration date
         messagebox.showinfo("Success", "Activation successful!")
         root.destroy()  # Close the window
-        run_main_program()  # Run main program after activation
+        run_main_program()  # اجرای برنامه اصلی در صورت موفقیت فعال‌سازی
     else:
         messagebox.showerror("Error", result)
-
-def run_main_program():
-    """
-    Run the main program after successful activation.
-    """
-    # مسیر پوشه‌ای که فایل activator.py در آن قرار دارد
-    current_directory = os.path.dirname(os.path.abspath(__file__))
-    
-    # مسیر فایل برنامه اصلی
-    main_program_path = os.path.join(current_directory, "main.py")
-    
-    if os.path.exists(main_program_path):
-        subprocess.run(["python", main_program_path])
-    else:
-        messagebox.showerror("Error", "Main program file not found!")
+        sys.exit()  # خروج کامل از برنامه اگر کد فعال‌سازی نامعتبر باشد
 
 def check_existing_activation():
     """
@@ -112,6 +98,9 @@ def check_existing_activation():
     if status.get("activated"):
         expiration_date = datetime.strptime(status["expiration_date"], "%Y-%m-%d")
         if datetime.now() <= expiration_date:
+            messagebox.showinfo("Info", "Program already activated.")
+            root.destroy()
+            run_main_program()  # اجرای مستقیم برنامه اصلی اگر قبلاً فعال شده باشد
             return True
     return False
 
@@ -121,16 +110,20 @@ root.title("Activator")
 
 # Check if already activated
 if check_existing_activation():
-    messagebox.showinfo("Info", "Program already activated.")
-    root.destroy()
-    run_main_program()  # Run main program directly
+    pass  # برنامه اصلی قبلاً اجرا شده است
 else:
     activate_button = Button(root, text="Activate", command=on_activate)
     activate_button.pack(pady=20)
-    root.mainloop()
-# --- End activator.py ---
 
-# --- Begin main.py ---
+    # اضافه کردن متد برای بستن برنامه در صورت بسته شدن پنجره اکتیو
+    def on_close():
+        sys.exit()  # خروج کامل از برنامه در صورت بسته شدن پنجره اکتیو
+
+    root.protocol("WM_DELETE_WINDOW", on_close)  # هندل بسته شدن پنجره
+    root.mainloop()
+
+
+# --- End main.py ---
 # =======================================================================================================================================================================================
 #region پیشنیاز ها
 # ======================================================================================================================================================================================
