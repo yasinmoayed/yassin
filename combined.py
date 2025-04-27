@@ -2,11 +2,18 @@
 import hashlib
 import json
 from cryptography.fernet import Fernet
-from tkinter import Tk, Button, filedialog, messagebox
+from tkinter import Tk, Button, filedialog
 from datetime import datetime, timedelta
 import os
 import sys  # اضافه کردن ماژول sys برای خروج کامل
-
+import tkinter as tk
+from tkinter import ttk
+from bidi.algorithm import get_display
+import arabic_reshaper
+import sqlite3
+import openpyxl
+from openpyxl.styles import Alignment
+from tkinter import messagebox, simpledialog
 # مسیر دایرکتوری فعلی
 CURRENT_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 ACTIVATION_STATUS_FILE = os.path.join(CURRENT_DIRECTORY, "activation_status.json")
@@ -14,7 +21,36 @@ ACTIVATION_STATUS_FILE = os.path.join(CURRENT_DIRECTORY, "activation_status.json
 # Define a valid Base64 key for Fernet encryption
 SECRET_KEY = b'Y2hvb3NlQVN0cm9uZ0JhU2U2NEVuY3J5cHRpb25LZXk='  # Replace with your valid Fernet key
 cipher = Fernet(SECRET_KEY)
+# پیدا کردن مسیر دایرکتوری فایل اجرایی یا کد
+if getattr(sys, 'frozen', False):  # اگر برنامه به EXE تبدیل شده باشد
+    CURRENT_DIRECTORY = os.path.dirname(sys.executable)
+else:  # در حالت اجرای مستقیم کد پایتون
+    CURRENT_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 
+# مسیر فایل activation_status.json
+ACTIVATION_STATUS_FILE = os.path.join(CURRENT_DIRECTORY, "activation_status.json")
+
+def save_activation_status(status):
+    """ذخیره وضعیت فعال‌سازی در فایل JSON."""
+    with open(ACTIVATION_STATUS_FILE, "w") as file:
+        json.dump(status, file)
+    print(f"Activation status saved to: {ACTIVATION_STATUS_FILE}")
+
+def load_activation_status():
+    """بارگذاری وضعیت فعال‌سازی از فایل JSON."""
+    if not os.path.exists(ACTIVATION_STATUS_FILE):  # اگر فایل وجود نداشت
+        print("Activation file not found.")
+        return {"activated": False}
+    with open(ACTIVATION_STATUS_FILE, "r") as file:
+        return json.load(file)
+
+def check_existing_activation():
+    """بررسی فعال‌سازی قبلی."""
+    status = load_activation_status()
+    if status.get("activated"):
+        print("برنامه قبلاً فعال شده است.")
+        return True
+    return False
 def load_encrypted_file(file_path):
     """
     Load and decrypt the encrypted file.
@@ -89,7 +125,9 @@ def on_activate():
     else:
         messagebox.showerror("Error", result)
         sys.exit()  # خروج کامل از برنامه اگر کد فعال‌سازی نامعتبر باشد
-
+def run_main_program():
+    """اجرای برنامه اصلی."""
+    print("برنامه اصلی با موفقیت اجرا شد!")
 def check_existing_activation():
     """
     Check if activation is already valid.
@@ -127,23 +165,6 @@ else:
 # =======================================================================================================================================================================================
 #region پیشنیاز ها
 # ======================================================================================================================================================================================
-import tkinter as tk
-from tkinter import ttk, messagebox
-from bidi.algorithm import get_display
-import arabic_reshaper
-import sqlite3
-from tkinter import filedialog
-import json
-import openpyxl
-from openpyxl.styles import Alignment
-from tkinter import filedialog
-import os  # ایمپورت فراموش‌شده
-from datetime import datetime
-#endregion
-import os
-import json
-from datetime import datetime, timedelta
-from tkinter import messagebox, simpledialog
 
 # مسیر فایل لایسنس
 CURRENT_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
@@ -2413,6 +2434,10 @@ species_data = {
 # =======================================================================================================================================================================================
 # regionرابط کاربری (GUI)
 # ===========================================================================================================================================================================
+def run_main_program():
+    """اجرای برنامه اصلی."""
+    messagebox.showinfo("برنامه اصلی", "برنامه اصلی با موفقیت اجرا شد!")
+
 class DietCalculatorApp:
     def __init__(self, root):
         self.root = root
